@@ -1,6 +1,7 @@
 // src/pages/Login.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setCurrentUser } from '../utils/auth';
 import axios from 'axios';
 
 export default function Login() {
@@ -24,9 +25,15 @@ export default function Login() {
     try {
       const res = await axios.post('/api/auth/login', formData);
       console.log('Login success:', res.data);
-      // TODO: Save user data (later we’ll use context or localStorage)
-      alert(`Welcome, ${res.data.name}! (Role: ${res.data.role})`);
-      navigate('/'); // go to home after login
+      const user = res.data;
+      setCurrentUser(user);
+      alert(`Welcome, ${user.name}!`);
+      // Redirect by role
+      if (user.role === 'HOSTEL') {
+        navigate('/hostel');
+      } else {
+        navigate('/volunteer');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
     } finally {
