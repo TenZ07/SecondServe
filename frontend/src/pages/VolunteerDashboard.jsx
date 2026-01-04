@@ -46,7 +46,8 @@ export default function VolunteerDashboard() {
     setClaimingId(foodId);
     try {
       await axios.put(`/api/food/${foodId}/claim`, { claimedBy: currentUser._id });
-      alert('Food claimed successfully!');
+      setError('Food claimed successfully!');
+      setTimeout(() => setError(''), 3000);
       fetchAvailableFood();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to claim food');

@@ -172,6 +172,7 @@ export default function HostelDashboard() {
               <input
                 type="datetime-local"
                 name="availableUntil"
+                min={new Date().toISOString().slice(0, 16)}
                 className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
                 value={formData.availableUntil}
                 onChange={handleInputChange}
