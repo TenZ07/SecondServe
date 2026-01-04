@@ -1,6 +1,7 @@
 // controllers/food.controller.js
 const Food = require('../models/food');
 const User = require('../models/user');
+const mongoose = require('mongoose');
 
 // @desc    Add excess food (by hostel)
 // @route   POST /api/food
@@ -29,6 +30,20 @@ const addFood = async (req, res) => {
     });
 
     res.status(201).json(food);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const getFoodByHostel = async (req, res) => {
+  try {
+    const { hostelId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(hostelId)) {
+      return res.status(400).json({ message: 'Invalid hostel ID' });
+    }
+    const foods = await Food.find({ hostelId }).sort({ createdAt: -1 });
+    res.json(foods);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -112,5 +127,6 @@ module.exports = {
   addFood,
   getFoodListings,
   claimFood,
-  collectFood
+  collectFood,
+  getFoodByHostel
 };

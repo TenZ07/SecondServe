@@ -72,12 +72,23 @@ export default function HostelDashboard() {
 
   const fetchFoods = async () => {
     try {
-      const res = await axios.get('/api/food'); // gets AVAILABLE only
+      const user = getCurrentUser();
+      const res = await axios.get(`/api/food/hostel/${user._id}`);
       setFoods(res.data);
     } catch (err) {
-      setError('Failed to load food listings');
+      setError('Failed to load your food listings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCollect = async (foodId) => {
+    try {
+      await axios.put(`/api/food/${foodId}/collect`);
+      alert('Food marked as collected!');
+      fetchFoods(); // refresh
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to mark as collected');
     }
   };
 
@@ -217,7 +228,11 @@ export default function HostelDashboard() {
                       <h3 className="font-medium mt-1">Qty: {food.quantity}</h3>
                       <p className="text-sm text-gray-600 mt-1">📍 {food.location}</p>
                     </div>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                    <span className={`px-2 py-1 text-xs rounded font-bold ${
+                      food.status === 'AVAILABLE' ? 'bg-blue-100 text-blue-800' :
+                      food.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
                       {food.status}
                     </span>
                   </div>
