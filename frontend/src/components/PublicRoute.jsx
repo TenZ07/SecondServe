@@ -1,12 +1,10 @@
-// src/components/PublicRoute.jsx
 import { Navigate } from 'react-router-dom';
-import { getCurrentUser } from '../utils/auth';
+import { getUserFromToken } from '../utils/auth';
 
 export default function PublicRoute({ children }) {
-  const user = getCurrentUser();
+  const user = getUserFromToken();
   
   if (user) {
-    // Redirect to their dashboard
     return user.role === 'HOSTEL' ? 
       <Navigate to="/hostel" /> : 
       <Navigate to="/volunteer" />;

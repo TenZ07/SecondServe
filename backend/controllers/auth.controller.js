@@ -1,6 +1,6 @@
-// controllers/auth.controller.js
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
+const generateToken = require('../utils/generateToken');
 
 const registerUser = async (req, res) => {
   try {
@@ -26,13 +26,13 @@ const registerUser = async (req, res) => {
       location
     });
 
-    // ❌ NO TOKEN — just return user (minus password)
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      location: user.location
+      location: user.location,
+      token: generateToken(user._id, user.role)
     });
   } catch (error) {
     console.error(error);
@@ -58,13 +58,13 @@ const loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // ❌ NO TOKEN
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      location: user.location
+      location: user.location,
+      token: generateToken(user._id, user.role)
     });
   } catch (error) {
     console.error(error);

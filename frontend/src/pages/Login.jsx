@@ -1,8 +1,7 @@
-// src/pages/Login.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setCurrentUser } from '../utils/auth';
-import axios from 'axios';
+import { setToken } from '../utils/auth';
+import api from '../utils/axios';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -23,19 +22,20 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await axios.post('/api/auth/login', formData);
+      const res = await api.post('/auth/login', formData);
+      const { token, ...user } = res.data;
+      
+      setToken(token);
       console.log('Login success:', res.data);
-      const user = res.data;
-      setCurrentUser(user);
       alert(`Welcome, ${user.name}!`);
-      // Redirect by role
+
       if (user.role === 'HOSTEL') {
         navigate('/hostel');
       } else {
         navigate('/volunteer');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }

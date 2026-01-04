@@ -1,8 +1,7 @@
-// src/pages/VolunteerDashboard.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { getCurrentUser,clearUser } from '../utils/auth';
+import api from '../utils/axios';
+import { getUserFromToken, clearToken } from '../utils/auth';
 
 export default function VolunteerDashboard() {
   const [foods, setFoods] = useState([]);
@@ -11,20 +10,16 @@ export default function VolunteerDashboard() {
   const [claimingId, setClaimingId] = useState(null);
   const navigate = useNavigate();
 
-  const [currentUser, setCurrentUserState] = useState(null);
-
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) {
+    const user = getUserFromToken();
+    if (!user || user.role !== 'VOLUNTEER') {
       navigate('/login');
-      return;
     }
-    setCurrentUserState(user);
   }, [navigate]);
 
   const fetchAvailableFood = async () => {
     try {
-      const res = await axios.get('/api/food'); // gets AVAILABLE only
+      const res = await api.get('/food');
       setFoods(res.data);
     } catch (err) {
       setError('Failed to load available food');
@@ -38,26 +33,29 @@ export default function VolunteerDashboard() {
   }, []);
 
   const handleClaim = async (foodId) => {
-    if (!currentUser) {
-      alert('No user logged in');
+    const user = getUserFromToken();
+    if (!user) {
+      setError('You must be logged in to claim food');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
     setClaimingId(foodId);
     try {
-      await axios.put(`/api/food/${foodId}/claim`, { claimedBy: currentUser._id });
+      await api.put(`/food/${foodId}/claim`, { claimedBy: user._id });
       setError('Food claimed successfully!');
       setTimeout(() => setError(''), 3000);
       fetchAvailableFood();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to claim food');
+      setError(err.response?.data?.message || 'Failed to claim food');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setClaimingId(null);
     }
   };
 
   const handleLogout = () => {
-    clearUser();
+    clearToken();
     navigate('/');
   };
 
@@ -109,15 +107,13 @@ export default function VolunteerDashboard() {
                   </div>
 
                   <div className="w-full md:w-auto mt-4 md:mt-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <button 
-                        onClick={() => handleClaim(food._id)}
-                        disabled={claimingId === food._id}
-                        className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm hover:bg-violet-700 transition disabled:opacity-50"
-                      >
-                        {claimingId === food._id ? 'Claiming...' : 'Claim Food'}
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => handleClaim(food._id)}
+                      disabled={claimingId === food._id}
+                      className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm hover:bg-violet-700 transition disabled:opacity-50"
+                    >
+                      {claimingId === food._id ? 'Claiming...' : 'Claim Food'}
+                    </button>
                   </div>
                 </div>
               </div>

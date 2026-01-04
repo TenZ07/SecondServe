@@ -1,9 +1,8 @@
-// src/components/ProtectedRoute.jsx
 import { Navigate } from 'react-router-dom';
-import { getCurrentUser } from '../utils/auth';
+import { getUserFromToken } from '../utils/auth';
 
 export default function ProtectedRoute({ children, allowedRoles = ['HOSTEL', 'VOLUNTEER'] }) {
-  const user = getCurrentUser();
+  const user = getUserFromToken();
   
   if (!user) {
     return <Navigate to="/login" />;

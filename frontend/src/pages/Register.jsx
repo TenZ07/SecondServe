@@ -1,7 +1,7 @@
-// src/pages/Register.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/axios';
+import { setToken } from '../utils/auth';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -25,9 +25,16 @@ export default function Register() {
     setError('');
 
     try {
-      const res = await axios.post('/api/auth/register', formData);
-      console.log('User registered:', res.data);
-      navigate('/login'); // go to login after register
+      const res = await api.post('/auth/register', formData);
+      
+      const { token, role } = res.data;
+      setToken(token);
+      
+      if (role === 'HOSTEL') {
+        navigate('/hostel');
+      } else {
+        navigate('/volunteer');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally {

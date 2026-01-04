@@ -1,15 +1,14 @@
-// src/pages/HostelDashboard.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { getCurrentUser,clearUser } from '../utils/auth';
+import api from '../utils/axios';
+import { getUserFromToken, clearToken } from '../utils/auth';
 
 export default function HostelDashboard() {
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    hostelId: '', // will be filled after login (for MVP, user enters it manually)
+    hostelId: '',
     foodType: 'VEG',
     quantity: 10,
     availableUntil: '',
@@ -18,21 +17,17 @@ export default function HostelDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
- useEffect(() => {
-  const user = getCurrentUser();
-  if (!user) {
-    navigate('/login');
-    return;
-  }
-  // Auto-fill hostelId from logged-in user
-  setFormData(prev => ({
-    ...prev,
-    hostelId: user._id
-  }));
+  useEffect(() => {
+    const user = getUserFromToken();
+    if (!user || user.role !== 'HOSTEL') {
+      navigate('/login');
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      hostelId: user._id
+    }));
   }, [navigate]);
-
-  // For MVP: we don't have "logged-in user" context, so we ask hostelId
-  // Later: we'll store user after login and auto-fill this
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -44,25 +39,23 @@ export default function HostelDashboard() {
     setSubmitting(true);
     setError('');
 
-    // Basic validation
-    if (!formData.hostelId || !formData.availableUntil) {
-      setError('Please fill all fields');
+    if (!formData.hostelId || !formData.availableUntil || !formData.location) {
+      setError('Please fill all required fields');
       setSubmitting(false);
       return;
     }
 
     try {
-      const res = await axios.post('/api/food', formData);
-      console.log('Food added:', res.data);
+      const res = await api.post('/food', formData);
       alert('Food listing added!');
       setFormData({
-        ...formData,
+        hostelId: formData.hostelId,
         foodType: 'VEG',
         quantity: 10,
         availableUntil: '',
         location: ''
       });
-      fetchFoods(); // refresh list
+      fetchFoods();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add food');
     } finally {
@@ -72,8 +65,8 @@ export default function HostelDashboard() {
 
   const fetchFoods = async () => {
     try {
-      const user = getCurrentUser();
-      const res = await axios.get(`/api/food/hostel/${user._id}`);
+      const user = getUserFromToken();
+      const res = await api.get(`/food/hostel/${user._id}`);
       setFoods(res.data);
     } catch (err) {
       setError('Failed to load your food listings');
@@ -84,23 +77,22 @@ export default function HostelDashboard() {
 
   const handleCollect = async (foodId) => {
     try {
-      await axios.put(`/api/food/${foodId}/collect`);
+      await api.put(`/food/${foodId}/collect`);
       alert('Food marked as collected!');
-      fetchFoods(); // refresh
+      fetchFoods();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to mark as collected');
     }
   };
 
+  const handleLogout = () => {
+    clearToken();
+    navigate('/');
+  };
+
   useEffect(() => {
     fetchFoods();
   }, []);
-
-  // Later: replace this with real user session
-  const handleLogout = () => {
-    clearUser();
-    navigate('/');
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -124,7 +116,7 @@ export default function HostelDashboard() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Your Hostel ID
+                Your Hostel ID (auto-filled)
               </label>
               <input
                 type="text"
@@ -133,6 +125,7 @@ export default function HostelDashboard() {
                 className="w-full px-3 py-2 bg-gray-100 rounded cursor-not-allowed"
               />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -207,12 +200,12 @@ export default function HostelDashboard() {
 
         {/* Food Listings */}
         <div>
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Available Food Listings</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Your Food Listings</h2>
           
           {loading ? (
             <p className="text-gray-600">Loading food listings...</p>
           ) : foods.length === 0 ? (
-            <p className="text-gray-500">No available food listings.</p>
+            <p className="text-gray-500">No food listings found.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {foods.map((food) => (
@@ -240,6 +233,14 @@ export default function HostelDashboard() {
                   <p className="text-xs text-gray-500 mt-2">
                     Until: {new Date(food.availableUntil).toLocaleString()}
                   </p>
+                  {food.status === 'CLAIMED' && (
+                    <button
+                      onClick={() => handleCollect(food._id)}
+                      className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                    >
+                      Mark as Collected
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

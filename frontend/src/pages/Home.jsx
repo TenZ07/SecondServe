@@ -1,20 +1,17 @@
-// src/pages/Home.jsx
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser } from '../utils/auth';
+import { getUserFromToken } from '../utils/auth';
 
 export default function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const user = getCurrentUser();
+    const user = getUserFromToken();
     if (user) {
-      // Redirect to their dashboard
       navigate(user.role === 'HOSTEL' ? '/hostel' : '/volunteer');
     }
   }, [navigate]);
 
-  // If not logged in, show login/register
   const handleLogin = () => navigate('/login');
   const handleRegister = () => navigate('/register');
 
