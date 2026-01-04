@@ -11,11 +11,15 @@ export default function VolunteerDashboard() {
   const [claimingId, setClaimingId] = useState(null);
   const navigate = useNavigate();
 
+  const [currentUser, setCurrentUserState] = useState(null);
+
   useEffect(() => {
     const user = getCurrentUser();
     if (!user) {
       navigate('/login');
+      return;
     }
+    setCurrentUserState(user);
   }, [navigate]);
 
   const fetchAvailableFood = async () => {
@@ -33,17 +37,17 @@ export default function VolunteerDashboard() {
     fetchAvailableFood();
   }, []);
 
-  const handleClaim = async (foodId, volunteerId) => {
-    if (!volunteerId.trim()) {
-      alert('Please enter your Volunteer User ID');
+  const handleClaim = async (foodId) => {
+    if (!currentUser) {
+      alert('No user logged in');
       return;
     }
 
     setClaimingId(foodId);
     try {
-      await axios.put(`/api/food/${foodId}/claim`, { claimedBy: volunteerId });
+      await axios.put(`/api/food/${foodId}/claim`, { claimedBy: currentUser._id });
       alert('Food claimed successfully!');
-      fetchAvailableFood(); // refresh list
+      fetchAvailableFood();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to claim food');
     } finally {
@@ -105,17 +109,8 @@ export default function VolunteerDashboard() {
 
                   <div className="w-full md:w-auto mt-4 md:mt-0">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Your Volunteer User ID"
-                        className="px-3 py-1.5 border rounded text-sm w-full sm:w-48"
-                        id={`volunteer-id-${food._id}`}
-                      />
-                      <button
-                        onClick={() => {
-                          const input = document.getElementById(`volunteer-id-${food._id}`);
-                          handleClaim(food._id, input?.value || '');
-                        }}
+                      <button 
+                        onClick={() => handleClaim(food._id)}
                         disabled={claimingId === food._id}
                         className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm hover:bg-violet-700 transition disabled:opacity-50"
                       >

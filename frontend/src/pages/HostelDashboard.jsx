@@ -18,11 +18,17 @@ export default function HostelDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) {
-      navigate('/login');
-    }
+ useEffect(() => {
+  const user = getCurrentUser();
+  if (!user) {
+    navigate('/login');
+    return;
+  }
+  // Auto-fill hostelId from logged-in user
+  setFormData(prev => ({
+    ...prev,
+    hostelId: user._id
+  }));
   }, [navigate]);
 
   // For MVP: we don't have "logged-in user" context, so we ask hostelId
@@ -107,22 +113,15 @@ export default function HostelDashboard() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Your Hostel User ID *
+                Your Hostel ID
               </label>
               <input
                 type="text"
-                name="hostelId"
-                placeholder="Paste your hostel user ID from registration"
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
+                readOnly
                 value={formData.hostelId}
-                onChange={handleInputChange}
-                required
+                className="w-full px-3 py-2 bg-gray-100 rounded cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                (Get this from your registration response or MongoDB Atlas)
-              </p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
