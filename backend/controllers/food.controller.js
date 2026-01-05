@@ -4,10 +4,10 @@ const mongoose = require('mongoose');
 
 const addFood = async (req, res) => {
   try {
-    const { hostelId, foodType, quantity, availableUntil, location } = req.body;
+    const { hostelId, foodName, description, imageUrl, foodType, quantity, availableUntil, location } = req.body;
 
-    if (!hostelId || !foodType || !quantity || !availableUntil || !location) {
-      return res.status(400).json({ message: 'All fields are required' });
+    if (!hostelId || !foodName || !foodType || !quantity || !availableUntil || !location) {
+      return res.status(400).json({ message: 'Required fields: hostelId, foodName, foodType, quantity, availableUntil, location' });
     }
 
     const hostel = await User.findById(hostelId);
@@ -17,6 +17,9 @@ const addFood = async (req, res) => {
 
     const food = await Food.create({
       hostelId,
+      foodName,
+      description: description || '',
+      imageUrl: imageUrl || '',
       foodType,
       quantity,
       availableUntil,
@@ -36,7 +39,10 @@ const getFoodByHostel = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(hostelId)) {
       return res.status(400).json({ message: 'Invalid hostel ID' });
     }
-    const foods = await Food.find({ hostelId }).sort({ createdAt: -1 });
+    const foods = await Food.find({ hostelId })
+      .populate('reservedBy', 'name')
+      .populate('collectedBy', 'name')
+      .sort({ createdAt: -1 });
     res.json(foods);
   } catch (error) {
     console.error(error);
@@ -46,7 +52,11 @@ const getFoodByHostel = async (req, res) => {
 
 const getFoodListings = async (req, res) => {
   try {
-    const foods = await Food.find({ status: 'AVAILABLE' }).sort({ createdAt: -1 });
+    // Get all foods with populated user names for display
+    const foods = await Food.find({})
+      .populate('reservedBy', 'name')
+      .populate('collectedBy', 'name')
+      .sort({ createdAt: -1 });
     res.json(foods);
   } catch (error) {
     console.error(error);
@@ -54,9 +64,9 @@ const getFoodListings = async (req, res) => {
   }
 };
 
-const claimFood = async (req, res) => {
+const reserveFood = async (req, res) => {
   try {
-    const { claimedBy } = req.body;
+    const { reservedBy } = req.body;
     const foodId = req.params.id;
 
     const food = await Food.findById(foodId);
@@ -65,16 +75,26 @@ const claimFood = async (req, res) => {
     }
 
     if (food.status !== 'AVAILABLE') {
-      return res.status(400).json({ message: 'Food is not available' });
+      return res.status(400).json({ message: 'Food is not available for reservation' });
     }
 
-    const volunteer = await User.findById(claimedBy);
+    const volunteer = await User.findById(reservedBy);
     if (!volunteer || volunteer.role !== 'VOLUNTEER') {
       return res.status(400).json({ message: 'Invalid volunteer ID' });
     }
 
-    food.status = 'CLAIMED';
-    food.claimedBy = claimedBy;
+    // Check if this volunteer has previously reserved this food and let it expire
+    const hasExpiredReservation = food.reservationHistory.some(
+      history => history.userId.toString() === reservedBy && history.expired
+    );
+
+    if (hasExpiredReservation) {
+      return res.status(400).json({ message: 'You cannot reserve this food again after letting a previous reservation expire' });
+    }
+
+    food.status = 'RESERVED';
+    food.reservedBy = reservedBy;
+    food.reservedAt = new Date();
     await food.save();
 
     res.json(food);
@@ -84,8 +104,9 @@ const claimFood = async (req, res) => {
   }
 };
 
-const collectFood = async (req, res) => {
+const cancelReservation = async (req, res) => {
   try {
+    const { userId } = req.body;
     const foodId = req.params.id;
 
     const food = await Food.findById(foodId);
@@ -93,11 +114,17 @@ const collectFood = async (req, res) => {
       return res.status(404).json({ message: 'Food listing not found' });
     }
 
-    if (food.status !== 'CLAIMED') {
-      return res.status(400).json({ message: 'Food must be claimed first' });
+    if (food.status !== 'RESERVED') {
+      return res.status(400).json({ message: 'Food is not reserved' });
     }
 
-    food.status = 'COLLECTED';
+    if (food.reservedBy.toString() !== userId) {
+      return res.status(400).json({ message: 'You can only cancel your own reservation' });
+    }
+
+    food.status = 'AVAILABLE';
+    food.reservedBy = null;
+    food.reservedAt = null;
     await food.save();
 
     res.json(food);
@@ -107,10 +134,87 @@ const collectFood = async (req, res) => {
   }
 };
 
+const markAsCollected = async (req, res) => {
+  try {
+    const foodId = req.params.id;
+    const { hostelId } = req.body;
+
+    const food = await Food.findById(foodId);
+    if (!food) {
+      return res.status(404).json({ message: 'Food listing not found' });
+    }
+
+    if (food.status !== 'RESERVED') {
+      return res.status(400).json({ message: 'Food must be reserved first' });
+    }
+
+    // Verify this is the correct hostel
+    if (food.hostelId.toString() !== hostelId) {
+      return res.status(400).json({ message: 'You can only mark your own food as collected' });
+    }
+
+    // Check if reservation has expired (2 hours)
+    const reservationTime = new Date(food.reservedAt);
+    const currentTime = new Date();
+    const timeDiff = (currentTime - reservationTime) / (1000 * 60 * 60); // in hours
+
+    if (timeDiff > 2) {
+      // Mark reservation as expired and make available
+      food.reservationHistory.push({
+        userId: food.reservedBy,
+        reservedAt: food.reservedAt,
+        expired: true
+      });
+      food.status = 'AVAILABLE';
+      food.reservedBy = null;
+      food.reservedAt = null;
+      await food.save();
+      return res.status(400).json({ message: 'Reservation has expired. Food is now available for others.' });
+    }
+
+    food.status = 'COLLECTED';
+    food.collectedBy = food.reservedBy; // The person who reserved it is the one who collected it
+    await food.save();
+
+    res.json(food);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Utility function to check and expire reservations
+const checkExpiredReservations = async () => {
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    
+    const expiredReservations = await Food.find({
+      status: 'RESERVED',
+      reservedAt: { $lt: twoHoursAgo }
+    });
+
+    for (const food of expiredReservations) {
+      food.reservationHistory.push({
+        userId: food.reservedBy,
+        reservedAt: food.reservedAt,
+        expired: true
+      });
+      food.status = 'AVAILABLE';
+      food.reservedBy = null;
+      food.reservedAt = null;
+      await food.save();
+    }
+  } catch (error) {
+    console.error('Error checking expired reservations:', error);
+  }
+};
+
 module.exports = {
   addFood,
   getFoodListings,
-  claimFood,
-  collectFood,
-  getFoodByHostel
+  reserveFood,
+  cancelReservation,
+  markAsCollected,
+  getFoodByHostel,
+  checkExpiredReservations
 };

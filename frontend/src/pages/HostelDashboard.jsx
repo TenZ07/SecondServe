@@ -9,23 +9,28 @@ export default function HostelDashboard() {
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     hostelId: '',
+    foodName: '',
+    description: '',
+    imageUrl: '',
     foodType: 'VEG',
     quantity: 10,
     availableUntil: '',
     location: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const user = getUserFromToken();
-    if (!user || user.role !== 'HOSTEL') {
+    const currentUser = getUserFromToken();
+    if (!currentUser || currentUser.role !== 'HOSTEL') {
       navigate('/login');
       return;
     }
+    setUser(currentUser);
     setFormData((prev) => ({
       ...prev,
-      hostelId: user._id
+      hostelId: currentUser._id
     }));
   }, [navigate]);
 
@@ -39,17 +44,20 @@ export default function HostelDashboard() {
     setSubmitting(true);
     setError('');
 
-    if (!formData.hostelId || !formData.availableUntil || !formData.location) {
+    if (!formData.hostelId || !formData.foodName || !formData.availableUntil || !formData.location) {
       setError('Please fill all required fields');
       setSubmitting(false);
       return;
     }
 
     try {
-      const res = await api.post('/food', formData);
+      await api.post('/food', formData);
       alert('Food listing added!');
       setFormData({
         hostelId: formData.hostelId,
+        foodName: '',
+        description: '',
+        imageUrl: '',
         foodType: 'VEG',
         quantity: 10,
         availableUntil: '',
@@ -65,8 +73,8 @@ export default function HostelDashboard() {
 
   const fetchFoods = async () => {
     try {
-      const user = getUserFromToken();
-      const res = await api.get(`/food/hostel/${user._id}`);
+      const currentUser = getUserFromToken();
+      const res = await api.get(`/food/hostel/${currentUser._id}`);
       setFoods(res.data);
     } catch (err) {
       setError('Failed to load your food listings');
@@ -77,11 +85,12 @@ export default function HostelDashboard() {
 
   const handleCollect = async (foodId) => {
     try {
-      await api.put(`/food/${foodId}/collect`);
-      alert('Food marked as collected!');
+      const currentUser = getUserFromToken();
+      await api.put(`/food/${foodId}/mark-collected`, { hostelId: currentUser._id });
+      alert('Food collection confirmed!');
       fetchFoods();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to mark as collected');
+      alert(err.response?.data?.message || 'Failed to confirm collection');
     }
   };
 
@@ -94,17 +103,95 @@ export default function HostelDashboard() {
     fetchFoods();
   }, []);
 
+  // Separate foods by status
+  const availableFoods = foods.filter(food => food.status === 'AVAILABLE');
+  const reservedFoods = foods.filter(food => food.status === 'RESERVED');
+  const collectedFoods = foods.filter(food => food.status === 'COLLECTED');
+
+  const renderFoodCard = (food) => (
+    <div key={food._id} className="bg-white p-4 rounded-lg border shadow-sm">
+      {food.imageUrl && (
+        <img 
+          src={food.imageUrl} 
+          alt={food.foodName}
+          className="w-full h-32 object-cover rounded-md mb-3"
+        />
+      )}
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <h3 className="font-semibold text-lg">{food.foodName}</h3>
+          {food.description && (
+            <p className="text-sm text-gray-600 mb-2">{food.description}</p>
+          )}
+          <span className={`px-2 py-1 rounded text-xs font-bold ${
+            food.foodType === 'VEG' 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {food.foodType}
+          </span>
+          <p className="text-sm mt-1">Qty: {food.quantity}</p>
+          <p className="text-sm text-gray-600">📍 {food.location}</p>
+        </div>
+        <span className={`px-2 py-1 text-xs rounded font-bold ${
+          food.status === 'AVAILABLE' ? 'bg-blue-100 text-blue-800' :
+          food.status === 'RESERVED' ? 'bg-yellow-100 text-yellow-800' :
+          'bg-green-100 text-green-800'
+        }`}>
+          {food.status}
+        </span>
+      </div>
+      <p className="text-xs text-gray-500 mb-2">
+        Until: {new Date(food.availableUntil).toLocaleString()}
+      </p>
+      {food.status === 'RESERVED' && food.reservedBy && (
+        <div className="text-xs text-yellow-600 mb-2">
+          <p>Reserved by: {food.reservedBy.name || 'Unknown'}</p>
+          <p>Reserved: {new Date(food.reservedAt).toLocaleString()}</p>
+        </div>
+      )}
+      {food.status === 'COLLECTED' && food.collectedBy && (
+        <p className="text-xs text-green-600 mb-2">
+          Collected by: {food.collectedBy.name || 'Unknown'}
+        </p>
+      )}
+      {food.status === 'RESERVED' && (
+        <button
+          onClick={() => handleCollect(food._id)}
+          className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+        >
+          Mark as Collected
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-violet-800">Hostel Dashboard</h1>
-          <button
-            onClick={handleLogout}
-            className="text-violet-600 hover:underline"
-          >
-            Logout
-          </button>
+        {/* Header with User ID */}
+        <div className="bg-white p-4 rounded-xl shadow mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-violet-800">Hostel Dashboard</h1>
+              {user && (
+                <div className="mt-2 p-2 bg-violet-50 rounded-lg">
+                  <p className="text-sm text-violet-700">
+                    <span className="font-semibold">User ID:</span> {user._id}
+                  </p>
+                  <p className="text-sm text-violet-700">
+                    <span className="font-semibold">Role:</span> {user.role}
+                  </p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-violet-600 hover:underline"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Add Food Form */}
@@ -116,20 +203,51 @@ export default function HostelDashboard() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Your Hostel ID (auto-filled)
+                Food Name *
               </label>
               <input
                 type="text"
-                readOnly
-                value={formData.hostelId}
-                className="w-full px-3 py-2 bg-gray-100 rounded cursor-not-allowed"
+                name="foodName"
+                placeholder="e.g., Rice and Dal, Chicken Curry"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
+                value={formData.foodName}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <textarea
+                name="description"
+                placeholder="Brief description of the food..."
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
+                rows="3"
+                value={formData.description}
+                onChange={handleInputChange}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Image URL (Optional)
+              </label>
+              <input
+                type="url"
+                name="imageUrl"
+                placeholder="https://example.com/food-image.jpg"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
+                value={formData.imageUrl}
+                onChange={handleInputChange}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Food Type
+                  Food Type *
                 </label>
                 <select
                   name="foodType"
@@ -144,7 +262,7 @@ export default function HostelDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantity (servings)
+                  Quantity (servings) *
                 </label>
                 <input
                   type="number"
@@ -198,54 +316,57 @@ export default function HostelDashboard() {
           </form>
         </div>
 
-        {/* Food Listings */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Your Food Listings</h2>
-          
-          {loading ? (
-            <p className="text-gray-600">Loading food listings...</p>
-          ) : foods.length === 0 ? (
-            <p className="text-gray-500">No food listings found.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {foods.map((food) => (
-                <div key={food._id} className="bg-white p-4 rounded-lg border">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        food.foodType === 'VEG' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {food.foodType}
-                      </span>
-                      <h3 className="font-medium mt-1">Qty: {food.quantity}</h3>
-                      <p className="text-sm text-gray-600 mt-1">📍 {food.location}</p>
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded font-bold ${
-                      food.status === 'AVAILABLE' ? 'bg-blue-100 text-blue-800' :
-                      food.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {food.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Until: {new Date(food.availableUntil).toLocaleString()}
-                  </p>
-                  {food.status === 'CLAIMED' && (
-                    <button
-                      onClick={() => handleCollect(food._id)}
-                      className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
-                    >
-                      Mark as Collected
-                    </button>
-                  )}
+        {/* Food Listings by Status */}
+        {loading ? (
+          <p className="text-gray-600">Loading food listings...</p>
+        ) : (
+          <div className="space-y-8">
+            {/* Available Foods */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-green-800 flex items-center">
+                <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                Available Foods ({availableFoods.length})
+              </h2>
+              {availableFoods.length === 0 ? (
+                <p className="text-gray-500 bg-white p-4 rounded-lg">No available food listings.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {availableFoods.map(renderFoodCard)}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Reserved Foods */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-yellow-800 flex items-center">
+                <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
+                Reserved Foods ({reservedFoods.length})
+              </h2>
+              {reservedFoods.length === 0 ? (
+                <p className="text-gray-500 bg-white p-4 rounded-lg">No reserved food listings.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {reservedFoods.map(renderFoodCard)}
+                </div>
+              )}
+            </div>
+
+            {/* Collected Foods */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                <span className="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                Collected Foods ({collectedFoods.length})
+              </h2>
+              {collectedFoods.length === 0 ? (
+                <p className="text-gray-500 bg-white p-4 rounded-lg">No collected food listings.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {collectedFoods.map(renderFoodCard)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

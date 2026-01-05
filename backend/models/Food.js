@@ -6,6 +6,20 @@ const foodSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  foodName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  imageUrl: {
+    type: String,
+    default: ''
+  },
   foodType: {
     type: String,
     enum: ['VEG', 'NON_VEG'],
@@ -27,14 +41,43 @@ const foodSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['AVAILABLE', 'CLAIMED', 'COLLECTED'],
+    enum: ['AVAILABLE', 'RESERVED', 'COLLECTED'],
     default: 'AVAILABLE'
+  },
+  reservedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  reservedAt: {
+    type: Date,
+    default: null
   },
   claimedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null
-  }
+  },
+  collectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  confirmedByHostel: {
+    type: Boolean,
+    default: false
+  },
+  reservationHistory: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    reservedAt: Date,
+    expired: {
+      type: Boolean,
+      default: false
+    }
+  }]
 }, {
   timestamps: true
 });
