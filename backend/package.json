@@ -1,7 +1,7 @@
 {
-  "name": "backend",
+  "name": "second-serve-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Second Serve - A web application to reduce food waste by connecting hostels with volunteers",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -20,7 +20,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
     "mongoose": "^9.1.1",
-    "morgan": "^1.10.1"
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

@@ -11,14 +11,18 @@ export default function HostelDashboard() {
     hostelId: '',
     foodName: '',
     description: '',
-    imageUrl: '',
     foodType: 'VEG',
     quantity: 10,
     availableUntil: '',
     location: ''
   });
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,6 +43,21 @@ export default function HostelDashboard() {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setSelectedImage(null);
+      setImagePreview(null);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -51,18 +70,37 @@ export default function HostelDashboard() {
     }
 
     try {
-      await api.post('/food', formData);
+      const submitData = new FormData();
+      submitData.append('hostelId', formData.hostelId);
+      submitData.append('foodName', formData.foodName);
+      submitData.append('description', formData.description);
+      submitData.append('foodType', formData.foodType);
+      submitData.append('quantity', formData.quantity);
+      submitData.append('availableUntil', formData.availableUntil);
+      submitData.append('location', formData.location);
+      
+      if (selectedImage) {
+        submitData.append('image', selectedImage);
+      }
+
+      await api.post('/food', submitData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
       alert('Food listing added!');
       setFormData({
         hostelId: formData.hostelId,
         foodName: '',
         description: '',
-        imageUrl: '',
         foodType: 'VEG',
         quantity: 10,
         availableUntil: '',
         location: ''
       });
+      setSelectedImage(null);
+      setImagePreview(null);
       fetchFoods();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add food');
@@ -94,6 +132,29 @@ export default function HostelDashboard() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      alert('Please enter your password to delete your account');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await api.delete(`/auth/user/${user._id}`, {
+        data: { password: deletePassword }
+      });
+      alert('Account deleted successfully');
+      clearToken();
+      navigate('/');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete account');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setDeletePassword('');
+    }
+  };
+
   const handleLogout = () => {
     clearToken();
     navigate('/');
@@ -112,7 +173,10 @@ export default function HostelDashboard() {
     <div key={food._id} className="bg-white p-4 rounded-lg border shadow-sm">
       {food.imageUrl && (
         <img 
-          src={food.imageUrl} 
+          src={food.imageUrl.startsWith('/uploads') 
+            ? `http://localhost:5000${food.imageUrl}` 
+            : food.imageUrl
+          } 
           alt={food.foodName}
           className="w-full h-32 object-cover rounded-md mb-3"
         />
@@ -173,7 +237,7 @@ export default function HostelDashboard() {
         <div className="bg-white p-4 rounded-xl shadow mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-violet-800">Hostel Dashboard</h1>
+              <h1 className="text-2xl font-bold text-violet-800">Second Serve - Hostel Dashboard</h1>
               {user && (
                 <div className="mt-2 p-2 bg-violet-50 rounded-lg">
                   <p className="text-sm text-violet-700">
@@ -185,12 +249,20 @@ export default function HostelDashboard() {
                 </div>
               )}
             </div>
-            <button
-              onClick={handleLogout}
-              className="text-violet-600 hover:underline"
-            >
-              Logout
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="text-red-600 hover:underline text-sm"
+              >
+                Delete Account
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-violet-600 hover:underline"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
 
@@ -232,16 +304,26 @@ export default function HostelDashboard() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image URL (Optional)
+                Food Image (Optional)
               </label>
               <input
-                type="url"
-                name="imageUrl"
-                placeholder="https://example.com/food-image.jpg"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
                 className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
-                value={formData.imageUrl}
-                onChange={handleInputChange}
               />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-32 h-32 object-cover rounded-md"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                If no image is selected, a default Second Serve image will be used.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -364,6 +446,49 @@ export default function HostelDashboard() {
                   {collectedFoods.map(renderFoodCard)}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Delete Account Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-red-600 mb-4">Delete Account</h3>
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete your account? This action cannot be undone. 
+                All your food listings will also be deleted.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Enter your password to confirm:
+                </label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Your password"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword('');
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Account'}
+                </button>
+              </div>
             </div>
           </div>
         )}

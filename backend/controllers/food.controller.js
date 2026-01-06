@@ -1,10 +1,39 @@
 const Food = require('../models/food');
 const User = require('../models/user');
 const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'food-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 const addFood = async (req, res) => {
   try {
-    const { hostelId, foodName, description, imageUrl, foodType, quantity, availableUntil, location } = req.body;
+    const { hostelId, foodName, description, foodType, quantity, availableUntil, location } = req.body;
 
     if (!hostelId || !foodName || !foodType || !quantity || !availableUntil || !location) {
       return res.status(400).json({ message: 'Required fields: hostelId, foodName, foodType, quantity, availableUntil, location' });
@@ -15,11 +44,19 @@ const addFood = async (req, res) => {
       return res.status(400).json({ message: 'Invalid hostel ID' });
     }
 
+    // Handle image - use uploaded file or default image
+    let imageUrl = '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    } else {
+      imageUrl = '/second-serve/default-food.svg';
+    }
+
     const food = await Food.create({
       hostelId,
       foodName,
       description: description || '',
-      imageUrl: imageUrl || '',
+      imageUrl,
       foodType,
       quantity,
       availableUntil,
@@ -216,5 +253,6 @@ module.exports = {
   cancelReservation,
   markAsCollected,
   getFoodByHostel,
-  checkExpiredReservations
+  checkExpiredReservations,
+  upload
 };
