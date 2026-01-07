@@ -140,20 +140,16 @@ export default function VolunteerDashboard() {
       onClick={() => openFoodModal(food)}
     >
       <div className="relative">
-        {food.imageUrl ? (
-          <img 
-            src={food.imageUrl.startsWith('/uploads') 
-              ? `http://localhost:5000${food.imageUrl}` 
-              : food.imageUrl
-            } 
-            alt={food.foodName}
-            className="w-full h-40 object-cover"
-          />
-        ) : (
-          <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
-            <span className="text-gray-500">No Image</span>
-          </div>
-        )}
+        <img 
+          src={food.imageUrl && food.imageUrl.trim() !== '' ? food.imageUrl : '/second-serve/default-food.svg'} 
+          alt={food.foodName}
+          className="w-full h-40 object-cover"
+          onError={(e) => {
+            if (e.target.src !== window.location.origin + '/second-serve/default-food.svg') {
+              e.target.src = '/second-serve/default-food.svg';
+            }
+          }}
+        />
         <div className="absolute top-2 right-2">
           <span className={`px-2 py-1 rounded text-xs font-bold ${
             food.foodType === 'VEG' 
@@ -343,20 +339,16 @@ export default function VolunteerDashboard() {
                 </button>
 
                 {/* Food Image */}
-                {selectedFood.imageUrl ? (
-                  <img 
-                    src={selectedFood.imageUrl.startsWith('/uploads') 
-                      ? `http://localhost:5000${selectedFood.imageUrl}` 
-                      : selectedFood.imageUrl
-                    } 
-                    alt={selectedFood.foodName}
-                    className="w-full h-64 object-cover rounded-t-lg"
-                  />
-                ) : (
-                  <div className="w-full h-64 bg-gray-200 flex items-center justify-center rounded-t-lg">
-                    <span className="text-gray-500 text-lg">No Image Available</span>
-                  </div>
-                )}
+                <img 
+                  src={selectedFood.imageUrl && selectedFood.imageUrl.trim() !== '' ? selectedFood.imageUrl : '/second-serve/default-food.svg'} 
+                  alt={selectedFood.foodName}
+                  className="w-full h-64 object-cover rounded-t-lg"
+                  onError={(e) => {
+                    if (e.target.src !== window.location.origin + '/second-serve/default-food.svg') {
+                      e.target.src = '/second-serve/default-food.svg';
+                    }
+                  }}
+                />
 
                 {/* Food Details */}
                 <div className="p-6">

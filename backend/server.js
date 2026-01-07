@@ -4,7 +4,6 @@ const connectDB = require('./config/db');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const path = require('path');
 const { protect } = require('./middleware/auth.middleware');
 const { checkExpiredReservations } = require('./controllers/food.controller');
 
@@ -13,13 +12,24 @@ connectDB();
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "http:", "blob:", "*"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'self'"],
+    },
+  },
+}));
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
-
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/food', protect, require('./routes/food.routes'));

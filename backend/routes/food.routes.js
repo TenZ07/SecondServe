@@ -5,13 +5,12 @@ const {
   reserveFood,
   cancelReservation,
   markAsCollected,
-  getFoodByHostel,
-  upload
+  getFoodByHostel
 } = require('../controllers/food.controller');
 
 const router = express.Router();
 
-router.post('/', upload.single('image'), addFood);
+router.post('/', addFood);
 router.get('/', getFoodListings);
 router.get('/hostel/:hostelId', getFoodByHostel);
 router.put('/:id/reserve', reserveFood);

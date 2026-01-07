@@ -11,13 +11,12 @@ export default function HostelDashboard() {
     hostelId: '',
     foodName: '',
     description: '',
+    imageUrl: '',
     foodType: 'VEG',
     quantity: 10,
     availableUntil: '',
     location: ''
   });
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -43,21 +42,6 @@ export default function HostelDashboard() {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setSelectedImage(null);
-      setImagePreview(null);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -70,37 +54,18 @@ export default function HostelDashboard() {
     }
 
     try {
-      const submitData = new FormData();
-      submitData.append('hostelId', formData.hostelId);
-      submitData.append('foodName', formData.foodName);
-      submitData.append('description', formData.description);
-      submitData.append('foodType', formData.foodType);
-      submitData.append('quantity', formData.quantity);
-      submitData.append('availableUntil', formData.availableUntil);
-      submitData.append('location', formData.location);
-      
-      if (selectedImage) {
-        submitData.append('image', selectedImage);
-      }
-
-      await api.post('/food', submitData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
+      await api.post('/food', formData);
       alert('Food listing added!');
       setFormData({
         hostelId: formData.hostelId,
         foodName: '',
         description: '',
+        imageUrl: '',
         foodType: 'VEG',
         quantity: 10,
         availableUntil: '',
         location: ''
       });
-      setSelectedImage(null);
-      setImagePreview(null);
       fetchFoods();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add food');
@@ -171,16 +136,16 @@ export default function HostelDashboard() {
 
   const renderFoodCard = (food) => (
     <div key={food._id} className="bg-white p-4 rounded-lg border shadow-sm">
-      {food.imageUrl && (
-        <img 
-          src={food.imageUrl.startsWith('/uploads') 
-            ? `http://localhost:5000${food.imageUrl}` 
-            : food.imageUrl
-          } 
-          alt={food.foodName}
-          className="w-full h-32 object-cover rounded-md mb-3"
-        />
-      )}
+      <img 
+        src={food.imageUrl && food.imageUrl.trim() !== '' ? food.imageUrl : '/second-serve/default-food.svg'} 
+        alt={food.foodName}
+        className="w-full h-32 object-cover rounded-md mb-3"
+        onError={(e) => {
+          if (e.target.src !== window.location.origin + '/second-serve/default-food.svg') {
+            e.target.src = '/second-serve/default-food.svg';
+          }
+        }}
+      />
       <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="font-semibold text-lg">{food.foodName}</h3>
@@ -304,25 +269,18 @@ export default function HostelDashboard() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Food Image (Optional)
+                Image URL (Optional)
               </label>
               <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
+                type="url"
+                name="imageUrl"
+                placeholder="https://example.com/food-image.jpg"
                 className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-violet-500"
+                value={formData.imageUrl}
+                onChange={handleInputChange}
               />
-              {imagePreview && (
-                <div className="mt-2">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className="w-32 h-32 object-cover rounded-md"
-                  />
-                </div>
-              )}
               <p className="text-xs text-gray-500 mt-1">
-                If no image is selected, a default Second Serve image will be used.
+                If no image URL is provided, a default Second Serve image will be used.
               </p>
             </div>
 

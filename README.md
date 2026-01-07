@@ -22,7 +22,7 @@
 - **Role-based access** for hostels and volunteers with proper authorization
 - **2-hour reservation system** with automatic expiry and prevention of re-reservation
 - **Transparent operations** showing volunteer names for all reservations
-- **Image upload support** for food listings with local file storage and default fallback
+- **Image support** for food listings with URL input and fallback handling
 - **Account deletion** functionality for both hostels and volunteers with password confirmation
 - **Mobile-optimized** design for seamless cross-device experience
 
@@ -85,7 +85,7 @@ npm run dev
 
 ### Hostel Workflow
 1. **Register/Login** as hostel administrator
-2. **Add food listings** with name, description, and images (upload from local directory or use default)
+2. **Add food listings** with name, description, and images (provide image URL or use default)
 3. **Monitor reservations** in real-time dashboard
 4. **Mark as collected** when volunteers arrive for pickup
 5. **Delete account** option available with password confirmation
@@ -107,7 +107,7 @@ npm run dev
 
 ### Food Management
 - `GET /api/food` - Retrieve all food listings with user details
-- `POST /api/food` - Create new food listing with optional image upload (Hostel only)
+- `POST /api/food` - Create new food listing with optional image URL (Hostel only)
 - `GET /api/food/hostel/:id` - Get hostel-specific listings
 - `PUT /api/food/:id/reserve` - Reserve food item (Volunteer only)
 - `PUT /api/food/:id/cancel` - Cancel reservation (Volunteer only)
