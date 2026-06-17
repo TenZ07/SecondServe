@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { protect } = require('./middleware/auth.middleware');
+const errorHandler = require('./middleware/error.middleware');
 const { checkExpiredReservations } = require('./controllers/food.controller');
 
 dotenv.config();
@@ -36,6 +37,9 @@ app.use('/api/food', protect, require('./routes/food.routes'));
 app.get('/', (req, res) => {
   res.send('Second Serve Backend Running!');
 });
+
+// Error handling middleware
+app.use(errorHandler);
 
 // Check for expired reservations every 10 minutes
 setInterval(checkExpiredReservations, 10 * 60 * 1000);

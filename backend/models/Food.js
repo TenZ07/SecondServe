@@ -53,11 +53,6 @@ const foodSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
-  claimedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
   collectedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

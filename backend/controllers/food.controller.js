@@ -1,5 +1,5 @@
-const Food = require('../models/food');
-const User = require('../models/user');
+const Food = require('../models/Food');
+const User = require('../models/User');
 const mongoose = require('mongoose');
 
 const addFood = async (req, res) => {
@@ -153,12 +153,13 @@ const markAsCollected = async (req, res) => {
       return res.status(400).json({ message: 'You can only mark your own food as collected' });
     }
 
-    // Check if reservation has expired (2 hours)
+    // Check if reservation has expired
     const reservationTime = new Date(food.reservedAt);
     const currentTime = new Date();
+    const expiryHours = process.env.RESERVATION_EXPIRY_HOURS || 2;
     const timeDiff = (currentTime - reservationTime) / (1000 * 60 * 60); // in hours
 
-    if (timeDiff > 2) {
+    if (timeDiff > expiryHours) {
       // Mark reservation as expired and make available
       food.reservationHistory.push({
         userId: food.reservedBy,
@@ -186,11 +187,12 @@ const markAsCollected = async (req, res) => {
 // Utility function to check and expire reservations
 const checkExpiredReservations = async () => {
   try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const expiryMs = (process.env.RESERVATION_EXPIRY_HOURS || 2) * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - expiryMs);
     
     const expiredReservations = await Food.find({
       status: 'RESERVED',
-      reservedAt: { $lt: twoHoursAgo }
+      reservedAt: { $lt: cutoff }
     });
 
     for (const food of expiredReservations) {

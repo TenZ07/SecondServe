@@ -1,4 +1,4 @@
-const User = require('../models/user');
+const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
 
@@ -93,13 +93,13 @@ const deleteUser = async (req, res) => {
 
     // If user is a hostel, we should also handle their food listings
     if (user.role === 'HOSTEL') {
-      const Food = require('../models/food');
+      const Food = require('../models/Food');
       await Food.deleteMany({ hostelId: userId });
     }
 
     // If user is a volunteer, we should clean up their reservations
     if (user.role === 'VOLUNTEER') {
-      const Food = require('../models/food');
+      const Food = require('../models/Food');
       await Food.updateMany(
         { reservedBy: userId },
         { 
