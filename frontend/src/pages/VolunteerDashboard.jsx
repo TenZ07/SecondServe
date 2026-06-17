@@ -2,19 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { getUserFromToken, clearToken } from '../utils/auth';
+import { useToast } from '../components/Toast';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 
 export default function VolunteerDashboard() {
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [reservingId, setReservingId] = useState(null);
   const [cancelingId, setCancelingId] = useState(null);
   const [selectedFood, setSelectedFood] = useState(null);
   const [user, setUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+  const addToast = useToast();
 
   useEffect(() => {
     const currentUser = getUserFromToken();
@@ -30,7 +30,7 @@ export default function VolunteerDashboard() {
       const res = await api.get('/food');
       setFoods(res.data);
     } catch (err) {
-      setError('Failed to load food listings');
+      addToast('Failed to load food listings', 'error');
     } finally {
       setLoading(false);
     }
@@ -43,20 +43,17 @@ export default function VolunteerDashboard() {
   const handleReserve = async (foodId) => {
     const currentUser = getUserFromToken();
     if (!currentUser) {
-      setError('You must be logged in to reserve food');
-      setTimeout(() => setError(''), 3000);
+      addToast('You must be logged in to reserve food', 'error');
       return;
     }
 
     setReservingId(foodId);
     try {
       await api.put(`/food/${foodId}/reserve`, { reservedBy: currentUser._id });
-      setError('Food reserved successfully! You have 2 hours. The hostel will mark it as collected when you pick it up.');
-      setTimeout(() => setError(''), 5000);
+      addToast('Food reserved! You have 2 hours to pick it up.', 'success');
       fetchFoods();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reserve food');
-      setTimeout(() => setError(''), 3000);
+      addToast(err.response?.data?.message || 'Failed to reserve food', 'error');
     } finally {
       setReservingId(null);
     }
@@ -65,45 +62,19 @@ export default function VolunteerDashboard() {
   const handleCancelReservation = async (foodId) => {
     const currentUser = getUserFromToken();
     if (!currentUser) {
-      setError('You must be logged in to cancel reservation');
-      setTimeout(() => setError(''), 3000);
+      addToast('You must be logged in to cancel reservation', 'error');
       return;
     }
 
     setCancelingId(foodId);
     try {
       await api.put(`/food/${foodId}/cancel`, { userId: currentUser._id });
-      setError('Reservation cancelled successfully!');
-      setTimeout(() => setError(''), 3000);
+      addToast('Reservation cancelled successfully', 'info');
       fetchFoods();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to cancel reservation');
-      setTimeout(() => setError(''), 3000);
+      addToast(err.response?.data?.message || 'Failed to cancel reservation', 'error');
     } finally {
       setCancelingId(null);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!deletePassword) {
-      alert('Please enter your password to delete your account');
-      return;
-    }
-
-    setDeleting(true);
-    try {
-      await api.delete(`/auth/user/${user._id}`, {
-        data: { password: deletePassword }
-      });
-      alert('Account deleted successfully');
-      clearToken();
-      navigate('/');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete account');
-    } finally {
-      setDeleting(false);
-      setShowDeleteModal(false);
-      setDeletePassword('');
     }
   };
 
@@ -115,7 +86,8 @@ export default function VolunteerDashboard() {
   const getTimeRemaining = (reservedAt) => {
     const reservationTime = new Date(reservedAt);
     const currentTime = new Date();
-    const timeDiff = 2 * 60 * 60 * 1000 - (currentTime - reservationTime); // 2 hours in ms
+    const expiryHours = 2;
+    const timeDiff = expiryHours * 60 * 60 * 1000 - (currentTime - reservationTime);
     
     if (timeDiff <= 0) return 'Expired';
     
@@ -136,7 +108,7 @@ export default function VolunteerDashboard() {
   const renderFoodCard = (food) => (
     <div 
       key={food._id} 
-      className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200"
+      className="card-hover overflow-hidden cursor-pointer"
       onClick={() => openFoodModal(food)}
     >
       <div className="relative">
@@ -151,43 +123,39 @@ export default function VolunteerDashboard() {
           }}
         />
         <div className="absolute top-2 right-2">
-          <span className={`px-2 py-1 rounded text-xs font-bold ${
-            food.foodType === 'VEG' 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-red-100 text-red-800'
-          }`}>
+          <span className={food.foodType === 'VEG' ? 'badge-green' : 'badge-red'}>
             {food.foodType}
           </span>
         </div>
         <div className="absolute bottom-2 left-2">
-          <span className={`px-2 py-1 text-xs rounded font-bold ${
-            food.status === 'AVAILABLE' ? 'bg-blue-100 text-blue-800' :
-            food.status === 'RESERVED' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-green-100 text-green-800'
+          <span className={`${
+            food.status === 'AVAILABLE' ? 'badge-blue' :
+            food.status === 'RESERVED' ? 'badge-yellow' :
+            'badge-green'
           }`}>
             {food.status}
           </span>
         </div>
       </div>
       <div className="p-4">
-        <h3 className="font-semibold text-lg mb-1 truncate">{food.foodName}</h3>
-        <p className="text-sm text-gray-600 mb-2 line-clamp-2">{food.description || 'No description available'}</p>
-        <div className="flex justify-between items-center text-sm text-gray-500">
+        <h3 className="font-semibold text-primary-800 mb-1 truncate">{food.foodName}</h3>
+        <p className="text-sm text-gray-500 mb-2 line-clamp-2">{food.description || 'No description'}</p>
+        <div className="flex justify-between items-center text-xs text-primary-400">
           <span>Qty: {food.quantity}</span>
           <span>{new Date(food.availableUntil).toLocaleDateString()}</span>
         </div>
-        {food.status === 'RESERVED' && food.reservedBy === user?._id && (
-          <p className="text-xs text-yellow-600 mt-2">
+        {food.status === 'RESERVED' && food.reservedBy && typeof food.reservedBy === 'object' && food.reservedBy._id === user?._id && (
+          <p className="text-xs text-accent-600 mt-2 font-medium">
             {getTimeRemaining(food.reservedAt)}
           </p>
         )}
-        {food.status === 'RESERVED' && food.reservedBy !== user?._id && food.reservedBy && (
-          <p className="text-xs text-yellow-600 mt-2">
+        {food.status === 'RESERVED' && food.reservedBy && typeof food.reservedBy === 'object' && food.reservedBy._id !== user?._id && (
+          <p className="text-xs text-primary-400 mt-2">
             Reserved by: {food.reservedBy.name || 'Unknown'}
           </p>
         )}
-        {food.status === 'COLLECTED' && food.collectedBy && (
-          <p className="text-xs text-green-600 mt-2">
+        {food.status === 'COLLECTED' && food.collectedBy && typeof food.collectedBy === 'object' && (
+          <p className="text-xs text-emerald-600 mt-2">
             Collected by: {food.collectedBy.name || 'Unknown'}
           </p>
         )}
@@ -195,127 +163,113 @@ export default function VolunteerDashboard() {
     </div>
   );
 
-  // Separate foods by status for volunteer view
   const availableFoods = foods.filter(food => food.status === 'AVAILABLE');
   const reservedFoods = foods.filter(food => food.status === 'RESERVED');
   const myReservedFoods = foods.filter(food => 
-    food.status === 'RESERVED' && food.reservedBy && food.reservedBy._id === user?._id
+    food.status === 'RESERVED' && food.reservedBy && typeof food.reservedBy === 'object' && food.reservedBy._id === user?._id
   );
   const myCollectedFoods = foods.filter(food => 
-    food.status === 'COLLECTED' && food.collectedBy && food.collectedBy._id === user?._id
+    food.status === 'COLLECTED' && food.collectedBy && typeof food.collectedBy === 'object' && food.collectedBy._id === user?._id
   );
 
+  const sectionGrid = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4";
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-cream p-4 animate-fade-in">
       <div className="max-w-7xl mx-auto">
-        {/* Header with User ID */}
-        <div className="bg-white p-4 rounded-xl shadow mb-6">
+        <div className="card p-4 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-violet-800">Second Serve - Volunteer Dashboard</h1>
+              <h1 className="text-2xl font-bold text-primary-800">Volunteer Dashboard</h1>
               {user && (
-                <div className="mt-2 p-2 bg-violet-50 rounded-lg">
-                  <p className="text-sm text-violet-700">
-                    <span className="font-semibold">User ID:</span> {user._id}
-                  </p>
-                  <p className="text-sm text-violet-700">
-                    <span className="font-semibold">Role:</span> {user.role}
-                  </p>
+                <div className="mt-2 flex items-center gap-3 text-sm text-primary-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-accent-400"></span>
+                    {user.role}
+                  </span>
+                  <span className="text-primary-300">|</span>
+                  <span className="text-xs font-mono text-primary-400">ID: {user._id.slice(-6)}</span>
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="text-red-600 hover:underline text-sm"
-              >
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteModal(true)} className="btn-ghost text-sm text-accent-600 hover:text-accent-700">
                 Delete Account
               </button>
-              <button
-                onClick={handleLogout}
-                className="text-violet-600 hover:underline"
-              >
+              <button onClick={handleLogout} className="btn-ghost text-sm">
                 Logout
               </button>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl mb-6">
-          <p className="text-gray-600">
-            Reserve food for 2 hours. Go to the hostel location to pick up the food. The hostel will mark it as collected when you arrive. Click on any food card to see details.
+        <div className="card p-4 mb-6">
+          <p className="text-sm text-primary-500 leading-relaxed">
+            Reserve food for 2 hours. Go to the hostel location to pick up the food. The hostel will mark it as collected when you arrive. Click on any food card for details.
           </p>
         </div>
 
-        {error && (
-          <div className={`p-3 rounded mb-4 ${
-            error.includes('successfully') 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-red-100 text-red-700'
-          }`}>
-            {error}
-          </div>
-        )}
-
         {loading ? (
-          <p className="text-gray-600">Loading food listings...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="card overflow-hidden animate-pulse-soft">
+                <div className="h-40 bg-primary-100"></div>
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-primary-100 rounded w-3/4"></div>
+                  <div className="h-3 bg-primary-50 rounded w-1/2"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="space-y-8">
-            {/* Reserved Foods (All) */}
-            <div>
-              <h2 className="text-xl font-semibold mb-4 text-yellow-800 flex items-center">
-                <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
-                Reserved Foods ({reservedFoods.length})
-              </h2>
-              {reservedFoods.length === 0 ? (
-                <div className="bg-white p-6 rounded-xl text-center">
-                  <p className="text-gray-500">No reserved food at the moment.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {reservedFoods.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-primary-800 mb-4 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  Reserved Foods ({reservedFoods.length})
+                </h2>
+                <div className={sectionGrid}>
                   {reservedFoods.map(renderFoodCard)}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* My Reserved Foods */}
             {myReservedFoods.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold mb-4 text-orange-800 flex items-center">
-                  <span className="w-3 h-3 bg-orange-500 rounded-full mr-2"></span>
+                <h2 className="text-lg font-semibold text-primary-800 mb-4 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-accent-400"></span>
                   My Reserved Foods ({myReservedFoods.length})
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className={sectionGrid}>
                   {myReservedFoods.map(renderFoodCard)}
                 </div>
               </div>
             )}
 
-            {/* My Collected Foods */}
             {myCollectedFoods.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold mb-4 text-green-800 flex items-center">
-                  <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                <h2 className="text-lg font-semibold text-primary-800 mb-4 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                   My Collected Foods ({myCollectedFoods.length})
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className={sectionGrid}>
                   {myCollectedFoods.map(renderFoodCard)}
                 </div>
               </div>
             )}
 
-            {/* Available Foods */}
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-blue-800 flex items-center">
-                <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+              <h2 className="text-lg font-semibold text-primary-800 mb-4 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
                 Available Foods ({availableFoods.length})
               </h2>
               {availableFoods.length === 0 ? (
-                <div className="bg-white p-6 rounded-xl text-center">
-                  <p className="text-gray-500">No available food at the moment.</p>
+                <div className="card p-8 text-center">
+                  <p className="text-primary-300 text-sm">No available food at the moment.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className={sectionGrid}>
                   {availableFoods.map(renderFoodCard)}
                 </div>
               )}
@@ -325,24 +279,22 @@ export default function VolunteerDashboard() {
 
         {/* Food Detail Modal */}
         {selectedFood && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="modal-overlay" onClick={closeFoodModal}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="relative">
-                {/* Close button */}
                 <button
                   onClick={closeFoodModal}
-                  className="absolute top-4 right-4 z-10 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100"
+                  className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-lg hover:bg-white transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
 
-                {/* Food Image */}
                 <img 
                   src={selectedFood.imageUrl && selectedFood.imageUrl.trim() !== '' ? selectedFood.imageUrl : '/second-serve/default-food.svg'} 
                   alt={selectedFood.foodName}
-                  className="w-full h-64 object-cover rounded-t-lg"
+                  className="w-full h-64 object-cover rounded-t-2xl"
                   onError={(e) => {
                     if (e.target.src !== window.location.origin + '/second-serve/default-food.svg') {
                       e.target.src = '/second-serve/default-food.svg';
@@ -350,23 +302,18 @@ export default function VolunteerDashboard() {
                   }}
                 />
 
-                {/* Food Details */}
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-800 mb-2">{selectedFood.foodName}</h2>
-                      <div className="flex gap-2 mb-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                          selectedFood.foodType === 'VEG' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
+                      <h2 className="text-2xl font-bold text-primary-800 mb-2">{selectedFood.foodName}</h2>
+                      <div className="flex gap-2">
+                        <span className={selectedFood.foodType === 'VEG' ? 'badge-green' : 'badge-red'}>
                           {selectedFood.foodType}
                         </span>
-                        <span className={`px-3 py-1 text-sm rounded-full font-bold ${
-                          selectedFood.status === 'AVAILABLE' ? 'bg-blue-100 text-blue-800' :
-                          selectedFood.status === 'RESERVED' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                        <span className={`${
+                          selectedFood.status === 'AVAILABLE' ? 'badge-blue' :
+                          selectedFood.status === 'RESERVED' ? 'badge-yellow' :
+                          'badge-green'
                         }`}>
                           {selectedFood.status}
                         </span>
@@ -375,65 +322,52 @@ export default function VolunteerDashboard() {
                   </div>
 
                   {selectedFood.description && (
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-700 mb-2">Description</h3>
-                      <p className="text-gray-600">{selectedFood.description}</p>
+                    <div className="mb-5">
+                      <h3 className="font-semibold text-primary-700 mb-1.5 text-sm">Description</h3>
+                      <p className="text-gray-600 text-sm leading-relaxed">{selectedFood.description}</p>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-2 gap-5 mb-5">
                     <div>
-                      <h3 className="font-semibold text-gray-700 mb-1">Quantity</h3>
+                      <h3 className="font-semibold text-primary-700 text-sm mb-1">Quantity</h3>
                       <p className="text-gray-600">{selectedFood.quantity} servings</p>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-700 mb-1">Available Until</h3>
+                      <h3 className="font-semibold text-primary-700 text-sm mb-1">Available Until</h3>
                       <p className="text-gray-600">{new Date(selectedFood.availableUntil).toLocaleString()}</p>
                     </div>
                   </div>
 
                   <div className="mb-6">
-                    <h3 className="font-semibold text-gray-700 mb-1">Pickup Location</h3>
+                    <h3 className="font-semibold text-primary-700 text-sm mb-1">Pickup Location</h3>
                     <p className="text-gray-600">📍 {selectedFood.location}</p>
                   </div>
 
-                  {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && selectedFood.reservedBy._id === user?._id && (
-                    <div className="mb-6 p-3 bg-yellow-50 rounded-lg">
-                      <h3 className="font-semibold text-yellow-800 mb-1">Your Reservation</h3>
-                      <p className="text-yellow-700">
-                        Reserved: {new Date(selectedFood.reservedAt).toLocaleString()}
-                      </p>
-                      <p className="text-yellow-700 font-semibold">
-                        {getTimeRemaining(selectedFood.reservedAt)}
-                      </p>
-                      <p className="text-yellow-700 text-sm mt-2">
-                        Go to the pickup location. The hostel will mark it as collected when you arrive.
-                      </p>
+                  {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && typeof selectedFood.reservedBy === 'object' && selectedFood.reservedBy._id === user?._id && (
+                    <div className="mb-6 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                      <h3 className="font-semibold text-amber-800 mb-1">Your Reservation</h3>
+                      <p className="text-amber-700 text-sm">Reserved: {new Date(selectedFood.reservedAt).toLocaleString()}</p>
+                      <p className="text-amber-700 text-sm font-semibold mt-1">{getTimeRemaining(selectedFood.reservedAt)}</p>
+                      <p className="text-amber-600 text-xs mt-2">Go to the pickup location. The hostel will mark it as collected when you arrive.</p>
                     </div>
                   )}
 
-                  {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && selectedFood.reservedBy._id !== user?._id && (
-                    <div className="mb-6 p-3 bg-gray-50 rounded-lg">
-                      <h3 className="font-semibold text-gray-800 mb-1">Reserved by Another Volunteer</h3>
-                      <p className="text-gray-700">
-                        Reserved by: {selectedFood.reservedBy.name || 'Unknown'}
-                      </p>
-                      <p className="text-gray-700">
-                        Reserved: {new Date(selectedFood.reservedAt).toLocaleString()}
-                      </p>
+                  {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && typeof selectedFood.reservedBy === 'object' && selectedFood.reservedBy._id !== user?._id && (
+                    <div className="mb-6 p-4 bg-primary-50 rounded-xl border border-primary-100">
+                      <h3 className="font-semibold text-primary-700 mb-1">Reserved by Another Volunteer</h3>
+                      <p className="text-primary-500 text-sm">Reserved by: {selectedFood.reservedBy.name || 'Unknown'}</p>
+                      <p className="text-primary-500 text-sm">Reserved: {new Date(selectedFood.reservedAt).toLocaleString()}</p>
                     </div>
                   )}
 
-                  {selectedFood.status === 'COLLECTED' && selectedFood.collectedBy && (
-                    <div className="mb-6 p-3 bg-green-50 rounded-lg">
-                      <h3 className="font-semibold text-green-800 mb-1">Collected</h3>
-                      <p className="text-green-700">
-                        Collected by: {selectedFood.collectedBy.name || 'Unknown'}
-                      </p>
+                  {selectedFood.status === 'COLLECTED' && selectedFood.collectedBy && typeof selectedFood.collectedBy === 'object' && (
+                    <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <h3 className="font-semibold text-emerald-800 mb-1">Collected</h3>
+                      <p className="text-emerald-700 text-sm">Collected by: {selectedFood.collectedBy.name || 'Unknown'}</p>
                     </div>
                   )}
 
-                  {/* Action Buttons */}
                   <div className="flex gap-3">
                     {selectedFood.status === 'AVAILABLE' && (
                       <button
@@ -442,33 +376,33 @@ export default function VolunteerDashboard() {
                           closeFoodModal();
                         }}
                         disabled={reservingId === selectedFood._id}
-                        className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg hover:bg-yellow-700 transition disabled:opacity-50"
+                        className="btn-accent flex-1"
                       >
                         {reservingId === selectedFood._id ? 'Reserving...' : 'Reserve Food'}
                       </button>
                     )}
 
-                    {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && selectedFood.reservedBy._id === user?._id && (
+                    {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && typeof selectedFood.reservedBy === 'object' && selectedFood.reservedBy._id === user?._id && (
                       <button
                         onClick={() => {
                           handleCancelReservation(selectedFood._id);
                           closeFoodModal();
                         }}
                         disabled={cancelingId === selectedFood._id}
-                        className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                        className="btn-danger flex-1"
                       >
                         {cancelingId === selectedFood._id ? 'Canceling...' : 'Cancel Reservation'}
                       </button>
                     )}
 
-                    {selectedFood.status === 'COLLECTED' && selectedFood.collectedBy && selectedFood.collectedBy._id === user?._id && (
-                      <div className="flex-1 bg-gray-100 text-gray-600 py-3 px-4 rounded-lg text-center">
+                    {selectedFood.status === 'COLLECTED' && selectedFood.collectedBy && typeof selectedFood.collectedBy === 'object' && selectedFood.collectedBy._id === user?._id && (
+                      <div className="flex-1 bg-primary-50 text-primary-500 py-3 px-4 rounded-xl text-center text-sm font-medium">
                         Food Collected Successfully
                       </div>
                     )}
 
-                    {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && selectedFood.reservedBy._id !== user?._id && (
-                      <div className="flex-1 bg-gray-100 text-gray-600 py-3 px-4 rounded-lg text-center">
+                    {selectedFood.status === 'RESERVED' && selectedFood.reservedBy && typeof selectedFood.reservedBy === 'object' && selectedFood.reservedBy._id !== user?._id && (
+                      <div className="flex-1 bg-primary-50 text-primary-400 py-3 px-4 rounded-xl text-center text-sm">
                         Reserved by {selectedFood.reservedBy.name || 'Another Volunteer'}
                       </div>
                     )}
@@ -479,48 +413,11 @@ export default function VolunteerDashboard() {
           </div>
         )}
 
-        {/* Delete Account Modal */}
-        {showDeleteModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-red-600 mb-4">Delete Account</h3>
-              <p className="text-gray-600 mb-4">
-                Are you sure you want to delete your account? This action cannot be undone. 
-                All your reservations will be cancelled.
-              </p>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Enter your password to confirm:
-                </label>
-                <input
-                  type="password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Your password"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowDeleteModal(false);
-                    setDeletePassword('');
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleting}
-                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition disabled:opacity-50"
-                >
-                  {deleting ? 'Deleting...' : 'Delete Account'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DeleteAccountModal
+          show={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          userId={user?._id}
+        />
       </div>
     </div>
   );
